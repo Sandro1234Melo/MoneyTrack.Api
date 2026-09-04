@@ -15,6 +15,9 @@ namespace MoneyTrack.Api.Infrastructure.Data
         public DbSet<ShoppingListItem> ShoppingListItems { get; set; }
         public DbSet<ExpenseItem> ExpenseItems { get; set; }
         public DbSet<Goal> Goals { get; set; }
+        public DbSet<Friendship> Friendships { get; set; }
+        public DbSet<ExpenseSplit> ExpenseSplits { get; set; }
+        public DbSet<SplitParticipant> SplitParticipants { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
