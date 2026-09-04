@@ -93,6 +93,23 @@ namespace MoneyTrack.Api.Presentation.Controllers
         [HttpPost("requests/{id:int}/decline")]
         public Task<IActionResult> Decline(int id) => Respond(id, false);
 
+        [HttpDelete("{friendUserId:int}")]
+        public async Task<IActionResult> Remove(int friendUserId)
+        {
+            try
+            {
+                var userId = UserId();
+                var friendship = await _context.Friendships.FirstOrDefaultAsync(f => f.Status == FriendshipStatus.Accepted &&
+                    ((f.SenderId == userId && f.ReceiverId == friendUserId) || (f.SenderId == friendUserId && f.ReceiverId == userId)));
+                if (friendship == null) return NotFound(new { error = "Amizade não encontrada." });
+                _context.Friendships.Remove(friendship);
+                await _context.SaveChangesAsync();
+                return NoContent();
+            }
+            catch (UnauthorizedAccessException ex) { return Error(ex, 401); }
+            catch (Exception ex) { return Error(ex); }
+        }
+
         private async Task<IActionResult> Respond(int id, bool accept)
         {
             try
