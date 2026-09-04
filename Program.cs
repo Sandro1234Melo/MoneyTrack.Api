@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using MoneyTrack.Api.Application.Interfaces;
 using MoneyTrack.Api.Application.UseCases.Auth;
 using MoneyTrack.Api.Application.UseCases.Categories;
@@ -151,6 +152,8 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+var profileDirectory = Path.Combine(app.Environment.ContentRootPath, "wwwroot", "profile");
+Directory.CreateDirectory(profileDirectory);
 
 
 // =====================================
@@ -163,6 +166,11 @@ app.UseSwaggerUI();
 app.UseCors("AllowReactApp");
 
 app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(profileDirectory),
+    RequestPath = "/profile"
+});
 
 app.UseHttpsRedirection();
 

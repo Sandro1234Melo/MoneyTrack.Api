@@ -6,10 +6,12 @@ namespace MoneyTrack.Api.Application.UseCases.Users
     public class UploadUserPhotoUseCase
     {
         private readonly IUserRepository _repository;
+        private readonly IWebHostEnvironment _environment;
 
-        public UploadUserPhotoUseCase(IUserRepository repository)
+        public UploadUserPhotoUseCase(IUserRepository repository, IWebHostEnvironment environment)
         {
             _repository = repository;
+            _environment = environment;
         }
 
         public async Task<string> Execute(int userId, IFormFile file)
@@ -22,7 +24,8 @@ namespace MoneyTrack.Api.Application.UseCases.Users
             if (user == null)
                 throw new Exception("Usuário não encontrado");
 
-            var folder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/profile");
+            var webRoot = _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+            var folder = Path.Combine(webRoot, "profile");
 
             if (!Directory.Exists(folder))
                 Directory.CreateDirectory(folder);
