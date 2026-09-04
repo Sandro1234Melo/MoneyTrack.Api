@@ -17,15 +17,15 @@ public class LoginUserUseCase
 
     public async Task<User> Execute(string email, string password)
     {
-        var user = await _repository.GetByEmail(email);
+        var user = await _repository.GetByEmail(email.Trim());
 
         if (user == null)
-            throw new Exception("Email ou senha inválidos.");
+            throw new UnauthorizedAccessException("Email ou senha inválidos.");
 
         var valid = _authService.VerifyPassword(password, user.PasswordHash);
 
         if (!valid)
-            throw new Exception("Email ou senha inválidos.");
+            throw new UnauthorizedAccessException("Email ou senha inválidos.");
 
         return user;
     }

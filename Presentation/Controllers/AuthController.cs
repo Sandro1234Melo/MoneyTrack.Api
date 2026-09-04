@@ -44,6 +44,9 @@ namespace MoneyTrack.Api.Presentation.Controllers
             if (string.IsNullOrWhiteSpace(jwtKey))
                 throw new InvalidOperationException("A chave JWT não está configurada.");
 
+            if (System.Text.Encoding.UTF8.GetByteCount(jwtKey) < 32)
+                throw new InvalidOperationException("A chave JWT deve ter pelo menos 32 bytes.");
+
             var response = _mapper.Map<UserResponseDto>(user);
             response.Token = JwtTokenGenerator.GenerateToken(user, jwtKey);
             return response;
@@ -73,9 +76,13 @@ namespace MoneyTrack.Api.Presentation.Controllers
                 var response = CreateAuthenticatedResponse(user);
                 return Ok(response);
             }
-            catch (Exception ex)
+            catch (UnauthorizedAccessException ex)
             {
                 return HandleError(ex, nameof(Login), StatusCodes.Status401Unauthorized);
+            }
+            catch (Exception ex)
+            {
+                return HandleError(ex, nameof(Login), StatusCodes.Status500InternalServerError);
             }
         }
     }

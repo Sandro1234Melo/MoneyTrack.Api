@@ -20,14 +20,15 @@ namespace MoneyTrack.Api.Application.UseCases.Auth
 
         public async Task<User> Execute(UserCreateDto dto)
         {
-            var exists = await _repository.ExistsByEmail(dto.Email);
+            var email = dto.Email.Trim().ToLowerInvariant();
+            var exists = await _repository.ExistsByEmail(email);
 
             if (exists)
                 throw new Exception("Email já cadastrado.");
 
             var hash = _authService.HashPassword(dto.Password);
 
-            var user = new User(dto.FullName, dto.Email, hash);
+            var user = new User(dto.FullName.Trim(), email, hash);
 
             user.UpdatePreferences(
                 dto.CurrencyCode,
