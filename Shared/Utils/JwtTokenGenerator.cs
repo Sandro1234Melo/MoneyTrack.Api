@@ -8,7 +8,7 @@ namespace MoneyTrack.Api.Shared.Utils
 {
     public static class JwtTokenGenerator
     {
-        public static string GenerateToken(User user, string secretKey)
+        public static string GenerateToken(User user, string secretKey, string issuer, string audience)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.ASCII.GetBytes(secretKey);
@@ -21,6 +21,8 @@ namespace MoneyTrack.Api.Shared.Utils
                     new Claim(ClaimTypes.Email, user.Email)
                 }),
                 Expires = DateTime.UtcNow.AddHours(6),
+                Issuer = issuer,
+                Audience = audience,
                 SigningCredentials = new SigningCredentials(new SymmetricSecurityKey(key), SecurityAlgorithms.HmacSha256Signature)
             };
 

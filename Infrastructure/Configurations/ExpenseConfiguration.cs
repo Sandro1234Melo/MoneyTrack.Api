@@ -24,6 +24,8 @@ namespace MoneyTrack.Api.Infrastructure.Configurations
                 .HasColumnName("created_at");
             entity.Property(e => e.PaymentMethod)
                 .HasColumnName("paymentmethod");
+            entity.Property(e => e.ReceiptImageUrl)
+                .HasColumnName("receipt_image_url");
 
             entity.HasOne(e => e.User)
                 .WithMany(u => u.Expenses)

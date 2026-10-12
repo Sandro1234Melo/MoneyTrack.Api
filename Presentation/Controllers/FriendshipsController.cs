@@ -8,16 +8,12 @@ namespace MoneyTrack.Api.Presentation.Controllers
 {
     [ApiController]
     [Route("api/friendships")]
-    public class FriendshipsController : ControllerBase
+    public class FriendshipsController : AuthenticatedControllerBase
     {
         private readonly MoneyTrackDbContext _context;
         public FriendshipsController(MoneyTrackDbContext context) => _context = context;
 
-        private int UserId()
-        {
-            if (Request.Headers.TryGetValue("X-User-Id", out var value) && int.TryParse(value, out var id)) return id;
-            throw new UnauthorizedAccessException("Usuário não autenticado.");
-        }
+        private int UserId() => CurrentUserId;
         private IActionResult Error(Exception ex, int status = 400) => StatusCode(status, new { error = ex.Message });
 
         [HttpGet("search")]

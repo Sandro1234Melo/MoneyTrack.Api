@@ -9,7 +9,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class ShoppingListsController : ControllerBase
+    public class ShoppingListsController : AuthenticatedControllerBase
     {
         private readonly GetShoppingListsByUserUseCase _getUseCase;
         private readonly CreateShoppingListUseCase _createUseCase;
@@ -61,6 +61,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
+                if (userId != CurrentUserId) return Forbid();
                 var lists = await _getUseCase.Execute(userId, search, status);
                 return Ok(_mapper.Map<List<ShoppingListResponseDto>>(lists));
             }
@@ -77,7 +78,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
             {
                 var list = await _repository.GetById(id);
 
-                if (list == null)
+                if (list == null || list.UserId != CurrentUserId)
                     return NotFound(new { message = "Lista não encontrada" });
 
                 return Ok(_mapper.Map<ShoppingListResponseDto>(list));
@@ -93,6 +94,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
+                if (userId != CurrentUserId) return Forbid();
                 var lists = await _getUseCase.Execute(userId);
                 var dto = new ShoppingListSummaryDto
                 {
@@ -115,6 +117,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
+                dto.UserId = CurrentUserId;
                 var list = await _createUseCase.Execute(dto);
                 return CreatedAtAction(nameof(GetById), new { id = list.Id }, _mapper.Map<ShoppingListResponseDto>(list));
             }
@@ -131,7 +134,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
             {
                 var list = await _repository.GetById(id);
 
-                if (list == null)
+                if (list == null || list.UserId != CurrentUserId)
                     return NotFound(new { message = "Lista não encontrada" });
 
                 list.Update(dto.Name, dto.PlannedDate ?? list.PlannedDate, dto.LocationId);
@@ -152,7 +155,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
             {
                 var list = await _repository.GetById(id);
 
-                if (list == null)
+                if (list == null || list.UserId != CurrentUserId)
                     return NotFound(new { message = "Lista não encontrada" });
 
                 var item = new ShoppingListItem(dto.Description ?? string.Empty, dto.CategoryId, dto.Quantity, dto.Price, dto.Checked);
@@ -175,7 +178,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
             {
                 var list = await _repository.GetById(id);
 
-                if (list == null)
+                if (list == null || list.UserId != CurrentUserId)
                     return NotFound(new { message = "Lista não encontrada" });
 
                 var item = list.Items.FirstOrDefault(i => i.Id == itemId);
@@ -203,7 +206,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
             {
                 var list = await _repository.GetById(id);
 
-                if (list == null)
+                if (list == null || list.UserId != CurrentUserId)
                     return NotFound(new { message = "Lista não encontrada" });
 
                 var item = list.Items.FirstOrDefault(i => i.Id == itemId);
@@ -230,7 +233,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
             {
                 var list = await _repository.GetById(id);
 
-                if (list == null)
+                if (list == null || list.UserId != CurrentUserId)
                     return NotFound(new { message = "Lista não encontrada" });
 
                 var item = list.Items.FirstOrDefault(i => i.Id == itemId);
@@ -256,7 +259,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
             {
                 var list = await _repository.GetById(id);
 
-                if (list == null)
+                if (list == null || list.UserId != CurrentUserId)
                     return NotFound(new { message = "Lista não encontrada" });
 
                 list.Start();
@@ -275,6 +278,10 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
+                var list = await _repository.GetById(id);
+                if (list == null || list.UserId != CurrentUserId)
+                    return NotFound(new { message = "Lista não encontrada" });
+
                 var expenseId = await _convertUseCase.Execute(id, dto);
                 return Ok(new
                 {
@@ -293,6 +300,10 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
+                var list = await _repository.GetById(id);
+                if (list == null || list.UserId != CurrentUserId)
+                    return NotFound(new { message = "Lista não encontrada" });
+
                 await _deleteUseCase.Execute(id);
                 return NoContent();
             }

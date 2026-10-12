@@ -1,32 +1,36 @@
 ﻿using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using MoneyTrack.Api.Application.Dtos.Categories;
+using MoneyTrack.Api.Application.Interfaces;
 using MoneyTrack.Api.Application.UseCases.Categories;
 
 namespace MoneyTrack.Api.Presentation.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class CategoriesController : ControllerBase
+    public class CategoriesController : AuthenticatedControllerBase
     {
         private readonly CreateCategoryUseCase _createUseCase;
         private readonly GetCategoriesByUserUseCase _getUseCase;
         private readonly UpdateCategoryUseCase _updateUseCase;
         private readonly DeleteCategoryUseCase _deleteUseCase;
         private readonly IMapper _mapper;
+        private readonly ICategoryRepository _repository;
 
         public CategoriesController(
             CreateCategoryUseCase createUseCase,
             GetCategoriesByUserUseCase getUseCase,
             UpdateCategoryUseCase updateUseCase,
             DeleteCategoryUseCase deleteUseCase,
-            IMapper mapper)
+            IMapper mapper,
+            ICategoryRepository repository)
         {
             _createUseCase = createUseCase;
             _getUseCase = getUseCase;
             _updateUseCase = updateUseCase;
             _deleteUseCase = deleteUseCase;
             _mapper = mapper;
+            _repository = repository;
         }
 
         private IActionResult HandleError(Exception ex, string action)
@@ -45,6 +49,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
+                if (userId != CurrentUserId) return Forbid();
                 var categories = await _getUseCase.Execute(userId);
                 var response = _mapper.Map<IEnumerable<CategoryResponseDto>>(categories);
                 return Ok(response);
@@ -60,7 +65,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
-                var category = await _createUseCase.Execute(dto.Name, dto.User_Id);
+                var category = await _createUseCase.Execute(dto.Name, CurrentUserId);
                 var response = _mapper.Map<CategoryResponseDto>(category);
                 return Ok(response);
             }
@@ -75,6 +80,12 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
+                var category = await _repository.GetById(id);
+                if (category == null || category.UserId != CurrentUserId)
+                    return NotFound(new { error = "Categoria não encontrada." });
+                if (string.IsNullOrWhiteSpace(dto.Name))
+                    return BadRequest(new { error = "Informe o nome da categoria." });
+
                 await _updateUseCase.Execute(id, dto.Name);
                 return NoContent();
             }
@@ -89,6 +100,10 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
+                var category = await _repository.GetById(id);
+                if (category == null || category.UserId != CurrentUserId)
+                    return NotFound(new { error = "Categoria não encontrada." });
+
                 await _deleteUseCase.Execute(id);
                 return NoContent();
             }

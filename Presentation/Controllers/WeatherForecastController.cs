@@ -4,7 +4,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
 {
     [ApiController]
     [Route("[controller]")]
-    public class WeatherForecastController : ControllerBase
+    public class WeatherForecastController : AuthenticatedControllerBase
     {
         private static readonly string[] Summaries = new[]
         {

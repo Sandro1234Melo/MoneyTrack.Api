@@ -11,6 +11,7 @@ namespace MoneyTrack.Api.Application.Dtos.Expenses
         public int? LocationId { get; set; }
         public string? LocationName { get; set; }
         public PaymentMethodEnum PaymentMethod { get; set; }
+        public string? ReceiptImageUrl { get; set; }
         public List<ExpenseItemResponseDto> Items { get; set; } = new();
     }
 

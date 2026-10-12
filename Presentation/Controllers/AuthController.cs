@@ -1,4 +1,5 @@
 ﻿using AutoMapper;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MoneyTrack.Api.Application.Dtos.Users;
 using MoneyTrack.Api.Application.UseCases.Auth;
@@ -8,6 +9,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
 {
     [ApiController]
     [Route("api/auth")]
+    [AllowAnonymous]
     public class AuthController : ControllerBase
     {
         private readonly RegisterUserUseCase _registerUseCase;
@@ -48,7 +50,9 @@ namespace MoneyTrack.Api.Presentation.Controllers
                 throw new InvalidOperationException("A chave JWT deve ter pelo menos 32 bytes.");
 
             var response = _mapper.Map<UserResponseDto>(user);
-            response.Token = JwtTokenGenerator.GenerateToken(user, jwtKey);
+            var issuer = _configuration["Jwt:Issuer"] ?? "MoneyTrack.Api";
+            var audience = _configuration["Jwt:Audience"] ?? "MoneyTrack.Web";
+            response.Token = JwtTokenGenerator.GenerateToken(user, jwtKey, issuer, audience);
             return response;
         }
 

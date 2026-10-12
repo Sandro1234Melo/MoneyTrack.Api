@@ -8,7 +8,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class GoalsController : ControllerBase
+    public class GoalsController : AuthenticatedControllerBase
     {
         private readonly MoneyTrackDbContext _context;
 
@@ -22,6 +22,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
+                if (userId != CurrentUserId) return Forbid();
                 var goals = await _context.Goals
                     .AsNoTracking()
                     .Include(g => g.Category)
@@ -69,6 +70,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
+                if (userId != CurrentUserId) return Forbid();
                 var goals = await _context.Goals
                     .AsNoTracking()
                     .Include(g => g.Category)
@@ -109,6 +111,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
+                dto.UserId = CurrentUserId;
                 var goal = new Goal(
                     dto.Name,
                     dto.UserId,
@@ -142,7 +145,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
-                var goal = await _context.Goals.FirstOrDefaultAsync(g => g.Id == id);
+                var goal = await _context.Goals.FirstOrDefaultAsync(g => g.Id == id && g.UserId == CurrentUserId);
                 if (goal == null) return NotFound(new { message = "Meta não encontrada" });
 
                 goal.Update(
@@ -176,7 +179,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
-                var goal = await _context.Goals.FirstOrDefaultAsync(g => g.Id == id);
+                var goal = await _context.Goals.FirstOrDefaultAsync(g => g.Id == id && g.UserId == CurrentUserId);
                 if (goal == null) return NotFound(new { message = "Meta não encontrada" });
                 goal.ToggleFavorite();
                 await _context.SaveChangesAsync();
@@ -193,7 +196,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
-                var goal = await _context.Goals.FirstOrDefaultAsync(g => g.Id == id);
+                var goal = await _context.Goals.FirstOrDefaultAsync(g => g.Id == id && g.UserId == CurrentUserId);
                 if (goal == null) return NotFound(new { message = "Meta não encontrada" });
                 _context.Goals.Remove(goal);
                 await _context.SaveChangesAsync();

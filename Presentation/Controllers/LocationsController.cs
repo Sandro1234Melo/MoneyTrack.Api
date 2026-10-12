@@ -1,31 +1,35 @@
 ﻿using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
 using MoneyTrack.Api.Application.Dtos.Locations;
+using MoneyTrack.Api.Application.Interfaces;
 
 namespace MoneyTrack.Api.Presentation.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class LocationsController : ControllerBase
+    public class LocationsController : AuthenticatedControllerBase
     {
         private readonly GetLocationsUseCase _getUseCase;
         private readonly CreateLocationUseCase _createUseCase;
         private readonly UpdateLocationUseCase _updateUseCase;
         private readonly DeleteLocationUseCase _deleteUseCase;
         private readonly IMapper _mapper;
+        private readonly ILocationRepository _repository;
 
         public LocationsController(
             GetLocationsUseCase getUseCase,
             CreateLocationUseCase createUseCase,
             UpdateLocationUseCase updateUseCase,
             DeleteLocationUseCase deleteUseCase,
-            IMapper mapper)
+            IMapper mapper,
+            ILocationRepository repository)
         {
             _getUseCase = getUseCase;
             _createUseCase = createUseCase;
             _updateUseCase = updateUseCase;
             _deleteUseCase = deleteUseCase;
             _mapper = mapper;
+            _repository = repository;
         }
 
         private IActionResult HandleError(Exception ex, string action)
@@ -44,7 +48,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
-                var locations = await _getUseCase.GetAll();
+                var locations = await _getUseCase.GetByUser(CurrentUserId);
                 return Ok(_mapper.Map<IEnumerable<LocationResponseDto>>(locations));
             }
             catch (Exception ex)
@@ -58,6 +62,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
+                if (userId != CurrentUserId) return Forbid();
                 var locations = await _getUseCase.GetByUserWithStats(userId);
                 return Ok(locations);
             }
@@ -72,6 +77,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
+                dto.User_Id = CurrentUserId;
                 var location = await _createUseCase.Execute(dto);
                 return Ok(_mapper.Map<LocationResponseDto>(location));
             }
@@ -86,6 +92,11 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
+                var current = await _repository.GetById(id);
+                if (current == null || current.UserId != CurrentUserId)
+                    return NotFound(new { error = "Local não encontrado." });
+
+                dto.User_Id = CurrentUserId;
                 var location = await _updateUseCase.Execute(id, dto);
                 return Ok(_mapper.Map<LocationResponseDto>(location));
             }
@@ -100,6 +111,10 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
+                var current = await _repository.GetById(id);
+                if (current == null || current.UserId != CurrentUserId)
+                    return NotFound(new { error = "Local não encontrado." });
+
                 await _deleteUseCase.Execute(id);
                 return NoContent();
             }

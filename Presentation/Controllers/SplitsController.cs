@@ -7,11 +7,11 @@ using MoneyTrack.Api.Infrastructure.Data;
 namespace MoneyTrack.Api.Presentation.Controllers
 {
     [ApiController, Route("api/splits")]
-    public class SplitsController : ControllerBase
+    public class SplitsController : AuthenticatedControllerBase
     {
         private readonly MoneyTrackDbContext _context;
         public SplitsController(MoneyTrackDbContext context) => _context = context;
-        private int UserId() => Request.Headers.TryGetValue("X-User-Id", out var v) && int.TryParse(v, out var id) ? id : throw new UnauthorizedAccessException("Usuário não autenticado.");
+        private int UserId() => CurrentUserId;
         private IActionResult Error(Exception ex, int status = 400) => StatusCode(status, new { error = ex.Message });
 
         [HttpGet]

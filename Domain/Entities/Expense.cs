@@ -14,6 +14,7 @@ public class Expense
 
     public int? LocationId { get; private set; }
     public Location? Location { get; private set; }
+    public string? ReceiptImageUrl { get; private set; }
 
     public ICollection<ExpenseItem> Items { get; private set; } = new List<ExpenseItem>();
 
@@ -50,4 +51,6 @@ public class Expense
 
         Items.Add(item);
     }
+
+    public void UpdateReceiptImage(string? imageUrl) => ReceiptImageUrl = imageUrl;
 }

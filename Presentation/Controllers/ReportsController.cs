@@ -5,7 +5,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
 {
     [ApiController]
     [Route("api/reports")]
-    public class ReportsController : ControllerBase
+    public class ReportsController : AuthenticatedControllerBase
     {
         private readonly GetCategoryDistributionUseCase _categoryUseCase;
         private readonly GetDashboardSummaryUseCase _dashboardUseCase;
@@ -42,14 +42,17 @@ namespace MoneyTrack.Api.Presentation.Controllers
         public async Task<IActionResult> CategoryDistribution(
             [FromQuery] int userId,
             [FromQuery] DateTime? from,
-            [FromQuery] DateTime? to)
+            [FromQuery] DateTime? to,
+            [FromQuery] int? categoryId,
+            [FromQuery] int? locationId,
+            [FromQuery] int? paymentMethod)
         {
             try
             {
-                if (userId <= 0)
-                    return BadRequest(new { error = "UserId inválido" });
+                if (userId != CurrentUserId) return Forbid();
 
-                var result = await _categoryUseCase.Execute(userId, from, to);
+                var result = await _categoryUseCase.Execute(
+                    userId, from, to, categoryId, locationId, paymentMethod);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -66,8 +69,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
-                if (userId <= 0)
-                    return BadRequest(new { error = "UserId inválido" });
+                if (userId != CurrentUserId) return Forbid();
 
                 var result = await _dashboardUseCase.Execute(userId, from, to);
                 return Ok(result);
@@ -82,14 +84,17 @@ namespace MoneyTrack.Api.Presentation.Controllers
         public async Task<IActionResult> Monthly(
             [FromQuery] int userId,
             [FromQuery] DateTime? from,
-            [FromQuery] DateTime? to)
+            [FromQuery] DateTime? to,
+            [FromQuery] int? categoryId,
+            [FromQuery] int? locationId,
+            [FromQuery] int? paymentMethod)
         {
             try
             {
-                if (userId <= 0)
-                    return BadRequest(new { error = "UserId inválido" });
+                if (userId != CurrentUserId) return Forbid();
 
-                var result = await _monthlyUseCase.Execute(userId, from, to);
+                var result = await _monthlyUseCase.Execute(
+                    userId, from, to, categoryId, locationId, paymentMethod);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -102,14 +107,17 @@ namespace MoneyTrack.Api.Presentation.Controllers
         public async Task<IActionResult> PaymentMethods(
             [FromQuery] int userId,
             [FromQuery] DateTime? from,
-            [FromQuery] DateTime? to)
+            [FromQuery] DateTime? to,
+            [FromQuery] int? categoryId,
+            [FromQuery] int? locationId,
+            [FromQuery] int? paymentMethod)
         {
             try
             {
-                if (userId <= 0)
-                    return BadRequest(new { error = "UserId inválido" });
+                if (userId != CurrentUserId) return Forbid();
 
-                var result = await _paymentUseCase.Execute(userId, from, to);
+                var result = await _paymentUseCase.Execute(
+                    userId, from, to, categoryId, locationId, paymentMethod);
                 return Ok(result);
             }
             catch (Exception ex)
@@ -129,8 +137,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         {
             try
             {
-                if (userId <= 0)
-                    return BadRequest(new { error = "UserId inválido" });
+                if (userId != CurrentUserId) return Forbid();
 
                 var result = await _summaryUseCase.Execute(
                     userId, from, to, categoryId, locationId, paymentMethod);

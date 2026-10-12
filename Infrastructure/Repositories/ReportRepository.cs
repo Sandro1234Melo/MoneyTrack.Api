@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using MoneyTrack.Api.Application.Interfaces;
+using MoneyTrack.Api.Domain.Entities;
 using MoneyTrack.Api.Infrastructure.Data;
 
 public class ReportRepository : IReportRepository
@@ -29,6 +30,24 @@ public class ReportRepository : IReportRepository
             finalTo = finalFrom.AddDays(1);
 
         return (finalFrom, finalTo);
+    }
+
+    private static IQueryable<Expense> ApplyScopeFilters(
+        IQueryable<Expense> query,
+        int? categoryId,
+        int? locationId,
+        int? paymentMethod)
+    {
+        if (locationId.HasValue)
+            query = query.Where(e => e.LocationId == locationId.Value);
+
+        if (paymentMethod.HasValue)
+            query = query.Where(e => (int)e.PaymentMethod == paymentMethod.Value);
+
+        if (categoryId.HasValue)
+            query = query.Where(e => e.Items.Any(i => i.CategoryId == categoryId.Value));
+
+        return query;
     }
 
     public async Task<object> GetDashboardSummary(int userId, DateTime? from, DateTime? to)
@@ -147,17 +166,20 @@ public class ReportRepository : IReportRepository
             })
             .ToList();
 
-        var historyStart = fromDate.AddDays(-180);
-        var historicalDailyTotals = await _context.Expenses
+        // Inclui dias sem gastos no cálculo. A média anterior considerava somente
+        // dias que tinham compras, o que deixava a previsão artificialmente alta.
+        const int forecastHistoryDays = 90;
+        var forecastEnd = DateTime.UtcNow.Date.AddDays(1);
+        var historyStart = forecastEnd.AddDays(-forecastHistoryDays);
+        var historicalTotal = await _context.Expenses
             .AsNoTracking()
-            .Where(e => e.UserId == userId && e.Date >= historyStart && e.Date < fromDate)
-            .GroupBy(e => e.Date.Date)
-            .Select(g => g.SelectMany(e => e.Items).Sum(i => i.Amount))
-            .ToListAsync();
+            .Where(e => e.UserId == userId && e.Date >= historyStart && e.Date < forecastEnd)
+            .SelectMany(e => e.Items)
+            .SumAsync(i => (decimal?)i.Amount) ?? 0m;
 
-        var baseDailyAverage = historicalDailyTotals.Count > 0
-            ? historicalDailyTotals.Average()
-            : daysInFilter > 0 ? totalExpense / daysInFilter : 0m;
+        var baseDailyAverage = historicalTotal > 0
+            ? historicalTotal / forecastHistoryDays
+            : totalExpense / daysInFilter;
 
         var nextMonthDays = DateTime.DaysInMonth(DateTime.Today.AddMonths(1).Year, DateTime.Today.AddMonths(1).Month);
         var forecastNextWeek = Math.Round(baseDailyAverage * 7m, 2);
@@ -184,17 +206,28 @@ public class ReportRepository : IReportRepository
         };
     }
 
-    public async Task<List<object>> GetCategoryDistribution(int userId, DateTime? from, DateTime? to)
+    public async Task<List<object>> GetCategoryDistribution(
+        int userId,
+        DateTime? from,
+        DateTime? to,
+        int? categoryId,
+        int? locationId,
+        int? paymentMethod)
     {
         var range = NormalizeRange(from, to);
-        var query = _context.Expenses
+        var query = ApplyScopeFilters(_context.Expenses
             .AsNoTracking()
-            .Where(e => e.UserId == userId && e.Date >= range.From && e.Date < range.ToExclusive);
+            .Where(e => e.UserId == userId && e.Date >= range.From && e.Date < range.ToExclusive),
+            categoryId,
+            locationId,
+            paymentMethod);
 
-        var total = await query.SelectMany(e => e.Items).SumAsync(i => (decimal?)i.Amount) ?? 0m;
+        var items = query.SelectMany(e => e.Items)
+            .Where(i => !categoryId.HasValue || i.CategoryId == categoryId.Value);
 
-        var rows = await query
-            .SelectMany(e => e.Items)
+        var total = await items.SumAsync(i => (decimal?)i.Amount) ?? 0m;
+
+        var rows = await items
             .GroupBy(i => new { i.CategoryId, i.Category.Name })
             .Select(g => new
             {
@@ -222,40 +255,68 @@ public class ReportRepository : IReportRepository
             .ToList();
     }
 
-    public async Task<List<object>> GetMonthlyExpenses(int userId, DateTime? from, DateTime? to)
+    public async Task<List<object>> GetMonthlyExpenses(
+        int userId,
+        DateTime? from,
+        DateTime? to,
+        int? categoryId,
+        int? locationId,
+        int? paymentMethod)
     {
         var range = NormalizeRange(from, to);
 
-        return await _context.Expenses
+        var query = ApplyScopeFilters(_context.Expenses
             .AsNoTracking()
-            .Where(e => e.UserId == userId && e.Date >= range.From && e.Date < range.ToExclusive)
-            .GroupBy(e => new { e.Date.Year, e.Date.Month })
+            .Where(e => e.UserId == userId && e.Date >= range.From && e.Date < range.ToExclusive),
+            categoryId,
+            locationId,
+            paymentMethod);
+
+        return await query
+            .SelectMany(e => e.Items
+                .Where(i => !categoryId.HasValue || i.CategoryId == categoryId.Value),
+                (expense, item) => new { expense.Id, expense.Date, item.Amount })
+            .GroupBy(row => new { row.Date.Year, row.Date.Month })
             .Select(g => new
             {
                 g.Key.Year,
                 g.Key.Month,
                 Label = g.Key.Month.ToString() + "/" + g.Key.Year.ToString(),
-                Total = g.SelectMany(e => e.Items).Sum(i => i.Amount),
-                PurchasesCount = g.Count()
+                Total = g.Sum(row => row.Amount),
+                PurchasesCount = g.Select(row => row.Id).Distinct().Count()
             })
             .OrderBy(x => x.Year)
             .ThenBy(x => x.Month)
             .ToListAsync<object>();
     }
 
-    public async Task<List<object>> GetPaymentMethods(int userId, DateTime? from, DateTime? to)
+    public async Task<List<object>> GetPaymentMethods(
+        int userId,
+        DateTime? from,
+        DateTime? to,
+        int? categoryId,
+        int? locationId,
+        int? paymentMethod)
     {
         var range = NormalizeRange(from, to);
 
-        return await _context.Expenses
+        var query = ApplyScopeFilters(_context.Expenses
             .AsNoTracking()
-            .Where(e => e.UserId == userId && e.Date >= range.From && e.Date < range.ToExclusive)
-            .GroupBy(e => e.PaymentMethod)
+            .Where(e => e.UserId == userId && e.Date >= range.From && e.Date < range.ToExclusive),
+            categoryId,
+            locationId,
+            paymentMethod);
+
+        return await query
+            .SelectMany(e => e.Items
+                .Where(i => !categoryId.HasValue || i.CategoryId == categoryId.Value),
+                (expense, item) => new { expense.Id, expense.PaymentMethod, item.Amount })
+            .GroupBy(row => row.PaymentMethod)
             .Select(g => new
             {
                 Method = g.Key,
-                Total = g.Sum(e => e.Items.Sum(i => i.Amount)),
-                PurchasesCount = g.Count()
+                Total = g.Sum(row => row.Amount),
+                PurchasesCount = g.Select(row => row.Id).Distinct().Count()
             })
             .OrderByDescending(x => x.Total)
             .ToListAsync<object>();
@@ -270,18 +331,12 @@ public class ReportRepository : IReportRepository
         int? paymentMethod)
     {
         var range = NormalizeRange(from, to);
-        var query = _context.Expenses
+        var query = ApplyScopeFilters(_context.Expenses
             .AsNoTracking()
-            .Where(e => e.UserId == userId && e.Date >= range.From && e.Date < range.ToExclusive);
-
-        if (locationId.HasValue)
-            query = query.Where(e => e.LocationId == locationId.Value);
-
-        if (paymentMethod.HasValue)
-            query = query.Where(e => (int)e.PaymentMethod == paymentMethod.Value);
-
-        if (categoryId.HasValue)
-            query = query.Where(e => e.Items.Any(i => i.CategoryId == categoryId.Value));
+            .Where(e => e.UserId == userId && e.Date >= range.From && e.Date < range.ToExclusive),
+            categoryId,
+            locationId,
+            paymentMethod);
 
         return await query
             .SelectMany(e => e.Items)
