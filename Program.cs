@@ -14,12 +14,8 @@ using MoneyTrack.Api.Data.Repositories;
 using MoneyTrack.Api.Infrastructure.Data;
 using MoneyTrack.Api.Shared.Services;
 using System.Text;
-using QuestPDF.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
-
-QuestPDF.Settings.License = LicenseType.Community;
-
 
 // =====================================
 // DATABASE

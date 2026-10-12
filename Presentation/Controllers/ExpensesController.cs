@@ -6,9 +6,8 @@ using MoneyTrack.Api.Application.UseCases.Expenses;
 using MoneyTrack.Api.Application.Interfaces;
 using MoneyTrack.Api.Domain.Entities;
 using MoneyTrack.Api.Domain.Enum;
-using QuestPDF.Fluent;
-using QuestPDF.Helpers;
-using QuestPDF.Infrastructure;
+using System.Globalization;
+using System.Text;
 
 namespace MoneyTrack.Api.Presentation.Controllers
 {
@@ -254,67 +253,79 @@ namespace MoneyTrack.Api.Presentation.Controllers
         private static byte[] BuildPdf(IEnumerable<Expense> expenses)
         {
             var rows = Flatten(expenses).ToList();
-
-            return Document.Create(document =>
-            {
-                document.Page(page =>
+            var lines = rows.Count == 0
+                ? new List<string> { "Nenhuma despesa encontrada para os filtros selecionados." }
+                : rows.Select(row => string.Join(" | ", new[]
                 {
-                    page.Size(PageSizes.A4.Landscape());
-                    page.Margin(24);
-                    page.DefaultTextStyle(style => style.FontSize(9));
+                    row.Date.ToString("dd/MM/yyyy"),
+                    $"#{row.ExpenseId}",
+                    Shorten(row.Description, 24),
+                    Shorten(row.Category, 16),
+                    Shorten(row.PaymentMethod, 18),
+                    Shorten(row.Location, 16),
+                    row.Quantity.ToString("0.##", CultureInfo.InvariantCulture),
+                    row.Amount.ToString("N2", CultureInfo.InvariantCulture)
+                })).ToList();
 
-                    page.Header().Column(column =>
-                    {
-                        column.Item().Text("Relatório de gastos").FontSize(18).Bold();
-                        column.Item().Text($"Gerado em {DateTime.UtcNow:dd/MM/yyyy HH:mm} UTC").FontColor(Colors.Grey.Darken1);
-                    });
-
-                    page.Content().PaddingTop(16).Table(table =>
-                    {
-                        table.ColumnsDefinition(columns =>
-                        {
-                            columns.ConstantColumn(54);
-                            columns.ConstantColumn(34);
-                            columns.RelativeColumn(2);
-                            columns.RelativeColumn();
-                            columns.RelativeColumn();
-                            columns.RelativeColumn();
-                            columns.ConstantColumn(50);
-                            columns.ConstantColumn(60);
-                        });
-
-                        table.Header(header =>
-                        {
-                            foreach (var title in new[] { "Data", "Nota", "Produto", "Categoria", "Pagamento", "Local", "Qtd.", "Valor" })
-                                header.Cell().Element(HeaderCell).Text(title).Bold();
-                        });
-
-                        foreach (var row in rows)
-                        {
-                            table.Cell().Element(BodyCell).Text(row.Date.ToString("dd/MM/yyyy"));
-                            table.Cell().Element(BodyCell).Text(row.ExpenseId.ToString());
-                            table.Cell().Element(BodyCell).Text(row.Description);
-                            table.Cell().Element(BodyCell).Text(row.Category);
-                            table.Cell().Element(BodyCell).Text(row.PaymentMethod);
-                            table.Cell().Element(BodyCell).Text(row.Location);
-                            table.Cell().Element(BodyCell).AlignRight().Text(row.Quantity.ToString("0.##"));
-                            table.Cell().Element(BodyCell).AlignRight().Text(row.Amount.ToString("N2"));
-                        }
-
-                        if (rows.Count == 0)
-                            table.Cell().ColumnSpan(8).Padding(12).Text("Nenhuma despesa encontrada para os filtros selecionados.");
-                    });
-
-                    page.Footer().AlignCenter().Text(text =>
-                    {
-                        text.Span("MoneyTrack • Página ");
-                        text.CurrentPageNumber();
-                        text.Span(" de ");
-                        text.TotalPages();
-                    });
-                });
-            }).GeneratePdf();
+            const int rowsPerPage = 39;
+            var pages = lines.Chunk(rowsPerPage).ToList();
+            return BuildSimplePdf(pages);
         }
+
+        private static byte[] BuildSimplePdf(IReadOnlyList<string[]> pages)
+        {
+            var objects = new List<string>();
+            var pageIds = Enumerable.Range(0, pages.Count).Select(index => 4 + index * 2).ToArray();
+            objects.Add("<< /Type /Catalog /Pages 2 0 R >>");
+            objects.Add($"<< /Type /Pages /Kids [{string.Join(" ", pageIds.Select(id => $"{id} 0 R"))}] /Count {pages.Count} >>");
+            objects.Add("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+
+            for (var index = 0; index < pages.Count; index++)
+            {
+                var content = BuildPageContent(pages[index], index + 1, pages.Count);
+                var contentBytes = Encoding.ASCII.GetByteCount(content);
+                var pageId = pageIds[index];
+                var contentId = pageId + 1;
+                objects.Add($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 3 0 R >> >> /Contents {contentId} 0 R >>");
+                objects.Add($"<< /Length {contentBytes} >>\nstream\n{content}\nendstream");
+            }
+
+            var builder = new StringBuilder("%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n");
+            var offsets = new List<int> { 0 };
+            for (var index = 0; index < objects.Count; index++)
+            {
+                offsets.Add(Encoding.ASCII.GetByteCount(builder.ToString()));
+                builder.Append($"{index + 1} 0 obj\n{objects[index]}\nendobj\n");
+            }
+
+            var xrefOffset = Encoding.ASCII.GetByteCount(builder.ToString());
+            builder.Append($"xref\n0 {objects.Count + 1}\n0000000000 65535 f \n");
+            foreach (var offset in offsets.Skip(1)) builder.Append($"{offset:0000000000} 00000 n \n");
+            builder.Append($"trailer\n<< /Size {objects.Count + 1} /Root 1 0 R >>\nstartxref\n{xrefOffset}\n%%EOF");
+            return Encoding.ASCII.GetBytes(builder.ToString());
+        }
+
+        private static string BuildPageContent(IEnumerable<string> rows, int page, int pageCount)
+        {
+            var lines = new List<string>
+            {
+                "Relatorio de gastos",
+                $"Gerado em {DateTime.UtcNow:dd/MM/yyyy HH:mm} UTC",
+                "Data | Nota | Produto | Categoria | Pagamento | Local | Qtd. | Valor",
+                "--------------------------------------------------------------------------------"
+            };
+            lines.AddRange(rows);
+            lines.Add($"Pagina {page} de {pageCount}");
+            return $"BT\n/F1 10 Tf\n50 545 Td\n12 TL\n{string.Join("\n", lines.Select(line => $"({PdfEscape(line)}) Tj T*"))}\nET";
+        }
+
+        private static string PdfEscape(string value) => ToAscii(value).Replace("\\", "\\\\").Replace("(", "\\(").Replace(")", "\\)");
+
+        private static string ToAscii(string value) => string.Concat(value.Normalize(NormalizationForm.FormD)
+            .Where(character => CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
+            .Select(character => character <= 127 ? character : '?'));
+
+        private static string Shorten(string value, int maxLength) => value.Length <= maxLength ? value : $"{value[..Math.Max(0, maxLength - 1)]}…";
 
         private static IEnumerable<ExportRow> Flatten(IEnumerable<Expense> expenses) =>
             expenses.SelectMany(expense => expense.Items.Select(item => new ExportRow(
@@ -341,12 +352,6 @@ namespace MoneyTrack.Api.Presentation.Controllers
 
         private static string BuildFileName(string extension) =>
             $"moneytrack-gastos-{DateTime.UtcNow:yyyyMMdd-HHmmss}.{extension}";
-
-        private static IContainer HeaderCell(IContainer container) =>
-            container.Background(Colors.Blue.Darken3).Padding(5).DefaultTextStyle(style => style.FontColor(Colors.White));
-
-        private static IContainer BodyCell(IContainer container) =>
-            container.BorderBottom(1).BorderColor(Colors.Grey.Lighten2).PaddingVertical(4).PaddingHorizontal(2);
 
         private sealed record ExportRow(
             DateTime Date,
