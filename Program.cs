@@ -85,6 +85,7 @@ builder.Services.AddAutoMapper(_ => { }, typeof(AutoMapperProfile));
 // =====================================
 
 builder.Services.AddScoped<AuthService>();
+builder.Services.AddHttpClient<ReceiptScannerService>(client => client.Timeout = TimeSpan.FromSeconds(60));
 
 
 // =====================================

@@ -6,6 +6,7 @@ using MoneyTrack.Api.Application.UseCases.Expenses;
 using MoneyTrack.Api.Application.Interfaces;
 using MoneyTrack.Api.Domain.Entities;
 using MoneyTrack.Api.Domain.Enum;
+using MoneyTrack.Api.Shared.Services;
 using System.Globalization;
 using System.Text;
 
@@ -22,6 +23,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
         private readonly IMapper _mapper;
         private readonly IExpenseRepository _repository;
         private readonly IWebHostEnvironment _environment;
+        private readonly ReceiptScannerService _receiptScanner;
 
         public ExpensesController(
             CreateExpenseUseCase createUseCase,
@@ -30,7 +32,8 @@ namespace MoneyTrack.Api.Presentation.Controllers
             DeleteExpenseUseCase deleteUseCase,
             IMapper mapper,
             IExpenseRepository repository,
-            IWebHostEnvironment environment)
+            IWebHostEnvironment environment,
+            ReceiptScannerService receiptScanner)
         {
             _createUseCase = createUseCase;
             _getUseCase = getUseCase;
@@ -39,6 +42,7 @@ namespace MoneyTrack.Api.Presentation.Controllers
             _mapper = mapper;
             _repository = repository;
             _environment = environment;
+            _receiptScanner = receiptScanner;
         }
 
         private IActionResult HandleError(Exception ex, string action)
@@ -200,6 +204,23 @@ namespace MoneyTrack.Api.Presentation.Controllers
                 return Ok(new { url });
             }
             catch (Exception ex) { return HandleError(ex, nameof(UploadReceipt)); }
+        }
+
+        [HttpPost("scan-receipt")]
+        [RequestSizeLimit(10 * 1024 * 1024)]
+        public async Task<IActionResult> ScanReceipt(IFormFile file, CancellationToken cancellationToken)
+        {
+            try
+            {
+                if (file == null || file.Length == 0 || file.Length > 10 * 1024 * 1024 || !file.ContentType.StartsWith("image/"))
+                    return BadRequest(new { error = "Envie uma imagem de até 10 MB." });
+                var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+                if (extension is not ".jpg" and not ".jpeg" and not ".png" and not ".webp")
+                    return BadRequest(new { error = "Formato aceito: JPG, PNG ou WEBP." });
+
+                return Ok(await _receiptScanner.ScanAsync(file, cancellationToken));
+            }
+            catch (Exception ex) { return HandleError(ex, nameof(ScanReceipt)); }
         }
 
         private static byte[] BuildExcel(IEnumerable<Expense> expenses)
