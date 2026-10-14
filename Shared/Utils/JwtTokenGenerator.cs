@@ -11,7 +11,11 @@ namespace MoneyTrack.Api.Shared.Utils
         public static string GenerateToken(User user, string secretKey, string issuer, string audience)
         {
             var tokenHandler = new JwtSecurityTokenHandler();
-            var key = Encoding.ASCII.GetBytes(secretKey);
+            // A validação configurada no Program usa UTF-8. A assinatura precisa
+            // usar a mesma codificação para que chaves com caracteres não ASCII
+            // (por exemplo, geradas pelo provedor de deploy) não produzam tokens
+            // que falham logo na primeira requisição autenticada.
+            var key = Encoding.UTF8.GetBytes(secretKey);
 
             var tokenDescriptor = new SecurityTokenDescriptor
             {
