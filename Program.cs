@@ -34,7 +34,8 @@ builder.Services.AddDbContext<MoneyTrackDbContext>(options =>
 
 var jwtKey = builder.Configuration["Jwt:Key"];
 if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32)
-    throw new InvalidOperationException("Configure Jwt:Key com pelo menos 32 bytes em User Secrets ou variável de ambiente.");
+    throw new InvalidOperationException(
+        "JWT não configurado. No Render, defina a variável de ambiente Jwt__Key com uma chave aleatória de pelo menos 32 bytes.");
 
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "MoneyTrack.Api";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "MoneyTrack.Web";
